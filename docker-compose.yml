@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector extension enabled for RAG & embeddings
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rajmahal_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rajmahal_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rajmahal_secure_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-rajmahal_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rajmahal_user -d rajmahal_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis for query caching, session management & AI rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: rajmahal_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # FastAPI Backend Gateway
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rajmahal_backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://rajmahal_user:rajmahal_secure_pass@postgres:5432/rajmahal_db
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-gpt-4o-mini}
+      AI_FALLBACK_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  # React 19 + Vite Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rajmahal_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:

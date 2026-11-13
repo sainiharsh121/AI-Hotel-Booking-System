@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Secrets (keep the .env.example template tracked)
+.env
+.env.*
+!.env.example
+
+# Local database (recreate with: python backend/seed_data.py)
+backend/hotel.db
+*.db
+
+# Node / frontend build output
+node_modules/
+frontend/dist/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
