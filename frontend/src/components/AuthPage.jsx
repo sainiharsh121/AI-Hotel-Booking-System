@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  Hotel, 
   Sparkles, 
   User, 
   Mail, 
@@ -10,11 +9,8 @@ import {
   ArrowRight, 
   ArrowLeft, 
   ShieldCheck, 
-  Award, 
-  Star, 
   AlertCircle, 
-  CheckCircle2, 
-  KeyRound 
+  CheckCircle2
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -25,6 +21,7 @@ export default function AuthPage({ initialMode = 'login', onAuthSuccess, onBackT
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   
   // UI states
   const [showPassword, setShowPassword] = useState(false);
@@ -35,6 +32,7 @@ export default function AuthPage({ initialMode = 'login', onAuthSuccess, onBackT
   // Handle mode switch
   const switchMode = (newMode) => {
     setMode(newMode);
+    setConfirmPassword('');
     setErrorMessage('');
     setSuccessMessage('');
   };
@@ -48,12 +46,15 @@ export default function AuthPage({ initialMode = 'login', onAuthSuccess, onBackT
     }
   };
 
-  const handleQuickDemoFill = () => {
-    setEmail('harsh@example.com');
-    setPassword('1234');
-    setMode('login');
-    setErrorMessage('');
+  const handleConfirmChange = (e) => {
+    const val = e.target.value.replace(/\D/g, '');
+    if (val.length <= 4) {
+      setConfirmPassword(val);
+      if (errorMessage) setErrorMessage('');
+    }
   };
+
+  const pinsMismatch = mode === 'register' && confirmPassword.length === 4 && confirmPassword !== password;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -81,6 +82,11 @@ export default function AuthPage({ initialMode = 'login', onAuthSuccess, onBackT
         return;
       }
 
+      if (confirmPassword !== cleanPassword) {
+        setErrorMessage('The PINs you entered do not match. Please re-enter your PIN.');
+        return;
+      }
+
       setLoading(true);
       try {
         const res = await api.register({
@@ -91,7 +97,7 @@ export default function AuthPage({ initialMode = 'login', onAuthSuccess, onBackT
 
         setSuccessMessage('Account created successfully! Redirecting...');
         if (showToast) {
-          showToast('success', 'Registration Successful! 🎉', `Welcome to Grand Horizon, ${res.user.name}.`);
+          showToast('success', 'Registration Successful! 🎉', `Welcome to Rajmahal Residency, ${res.user.name}.`);
         }
         setTimeout(() => {
           onAuthSuccess(res.user);
@@ -129,81 +135,7 @@ export default function AuthPage({ initialMode = 'login', onAuthSuccess, onBackT
     <main className="auth-page-container" role="main" aria-label="Authentication Page">
       <div className="auth-split-wrapper">
         
-        {/* Left Side: Luxury Hotel Showcase & Ambient Details */}
-        <section 
-          className="auth-showcase-panel"
-          aria-label="Rajmahal Residency Experience"
-        >
-          <div className="showcase-bg-image" role="img" aria-label="Rajmahal Residency Luxury Suite View"></div>
-          <div className="showcase-overlay"></div>
-          
-          <div className="showcase-content">
-            {/* Top Brand Tag */}
-            <div className="showcase-header">
-              <div className="showcase-brand">
-                <img 
-                  src="/rajmahal-logo.jpg" 
-                  alt="Rajmahal Group Logo" 
-                  className="showcase-logo-img" 
-                />
-                <div>
-                  <h1 className="showcase-hotel-title">RAJMAHAL</h1>
-                  <span className="showcase-tagline">RESIDENCY</span>
-                </div>
-              </div>
-              <div className="showcase-stars-badge" aria-label="5-Star Luxury Rating">
-                <Sparkles size={14} className="star-icon" />
-                <span>Royal Sanctuary</span>
-              </div>
-            </div>
-
-            {/* Mid Feature Banner */}
-            <div className="showcase-hero-text">
-              <div className="pre-badge">
-                <Award size={15} /> ROYAL COMFORT • MEMORABLE MOMENTS
-              </div>
-              <h2 className="showcase-main-heading">
-                Stay, <span className="hero-serif-italic gold-text">differently</span>
-              </h2>
-              <p className="showcase-subtext">
-                Immerse yourself in artisanal tranquil suites, bespoke hospitality, and serene garden balconies crafted for restorative rest.
-              </p>
-            </div>
-
-            {/* Privilege Highlights Card */}
-            <div className="showcase-perks-card">
-              <h3 className="perks-title">Executive Guest Privileges</h3>
-              <ul className="perks-list" role="list">
-                <li className="perk-item">
-                  <ShieldCheck size={18} className="perk-icon" />
-                  <span><strong>Instant 4-Digit Access:</strong> Fast, frictionless, secure keyless PIN.</span>
-                </li>
-                <li className="perk-item">
-                  <Star size={18} className="perk-icon" />
-                  <span><strong>Best Rate Guarantee:</strong> Save up to 25% with zero booking fees.</span>
-                </li>
-                <li className="perk-item">
-                  <CheckCircle2 size={18} className="perk-icon" />
-                  <span><strong>Seamless Cancellation:</strong> 100% refund policy before scheduled check-in.</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Testimonial Quote */}
-            <blockquote className="showcase-quote">
-              <p>“The attention to detail is unmatched. Felt like a personalized luxury experience from start to finish.”</p>
-              <cite>— James T., London, UK</cite>
-            </blockquote>
-
-            <div className="showcase-footer-meta">
-              <span>Verified 4.9/5 Rating from 1,200+ Guests</span>
-              <span>•</span>
-              <span>Rohtak, India</span>
-            </div>
-          </div>
-        </section>
-
-        {/* Right Side: Enhanced Registration & Login Form Card */}
+        {/* Registration & Login Form Card */}
         <section 
           className="auth-form-panel"
           aria-label={mode === 'register' ? 'Guest Registration Form' : 'Guest Sign In Form'}
@@ -262,18 +194,6 @@ export default function AuthPage({ initialMode = 'login', onAuthSuccess, onBackT
               >
                 Create Account
               </button>
-            </div>
-
-            {/* Form Header */}
-            <div className="form-card-header">
-              <h2 className="form-title">
-                {mode === 'register' ? 'Join Rajmahal Residency' : 'Welcome Back'}
-              </h2>
-              <p className="form-subtitle">
-                {mode === 'register'
-                  ? 'Register as an executive patron to unlock royal suites and personalized luxury stays.'
-                  : 'Enter your registered email and 4-digit security PIN to access your reservations.'}
-              </p>
             </div>
 
             {/* Error & Success Feedback Banners */}
@@ -416,12 +336,52 @@ export default function AuthPage({ initialMode = 'login', onAuthSuccess, onBackT
                 </div>
               </div>
 
+              {/* Confirm PIN (Register Mode Only) */}
+              {mode === 'register' && (
+                <div className="auth-field-group">
+                  <label htmlFor="auth-confirm-pin-input" className="auth-label">
+                    <Lock size={16} aria-hidden="true" />
+                    <span>Confirm PIN <strong className="required-star" aria-hidden="true">*</strong></span>
+                  </label>
+                  <div className="auth-input-wrapper">
+                    <input
+                      id="auth-confirm-pin-input"
+                      type={showPassword ? 'text' : 'password'}
+                      name="confirmPassword"
+                      inputMode="numeric"
+                      pattern="[0-9]{4}"
+                      maxLength={4}
+                      autoComplete="new-password"
+                      required
+                      placeholder="••••"
+                      value={confirmPassword}
+                      onChange={handleConfirmChange}
+                      className="auth-text-input pin-input"
+                      aria-required="true"
+                      aria-invalid={pinsMismatch}
+                      aria-describedby="confirm-pin-hint"
+                    />
+                  </div>
+                  <span className="pin-hint-text" id="confirm-pin-hint" aria-live="polite">
+                    {pinsMismatch ? (
+                      <span className="pin-mismatch-text">PINs do not match</span>
+                    ) : confirmPassword.length === 4 ? (
+                      <span className="pin-valid-text">
+                        <CheckCircle2 size={13} /> PINs match
+                      </span>
+                    ) : (
+                      <span>Re-enter your 4-digit PIN</span>
+                    )}
+                  </span>
+                </div>
+              )}
+
               {/* Submit Action Button */}
               <button
                 id="auth-submit-btn"
                 type="submit"
                 className="btn-auth-submit"
-                disabled={loading || password.length !== 4 || !email}
+                disabled={loading || password.length !== 4 || !email || (mode === 'register' && confirmPassword.length !== 4)}
               >
                 {loading ? (
                   <span className="spinner-text">
@@ -436,23 +396,6 @@ export default function AuthPage({ initialMode = 'login', onAuthSuccess, onBackT
                 )}
               </button>
             </form>
-
-            {/* Quick Demo Helper Pill */}
-            <div className="demo-credentials-box">
-              <div className="demo-header">
-                <KeyRound size={14} />
-                <span>Instant Demo Login</span>
-              </div>
-              <button 
-                type="button" 
-                className="demo-fill-btn"
-                onClick={handleQuickDemoFill}
-                title="Click to auto-fill Harsh Saini demo credentials"
-              >
-                <span>Demo Guest: <strong>harsh@example.com</strong></span>
-                <span className="demo-badge">PIN: 1234</span>
-              </button>
-            </div>
 
             {/* Switch Mode Footer */}
             <div className="auth-card-footer">
@@ -484,7 +427,7 @@ export default function AuthPage({ initialMode = 'login', onAuthSuccess, onBackT
             {/* Security Guarantee Note */}
             <div className="auth-security-guarantee">
               <ShieldCheck size={14} />
-              <span>256-Bit Encrypted Secure Reservation System</span>
+              <span>Sign in to manage your reservations</span>
             </div>
 
           </div>
