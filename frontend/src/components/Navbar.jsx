@@ -1,106 +1,67 @@
 import React from 'react';
-import { Hotel, BookmarkCheck, BedDouble, User, KeyRound, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 
-export default function Navbar({ 
-  activeTab, 
-  setActiveTab, 
-  availableRoomsCount, 
-  bookingsCount, 
-  isOnline,
-  currentUser,
-  onLogout 
-}) {
+const TABS = [
+  { key: 'home', label: 'Home' },
+  { key: 'rooms', label: 'Rooms' },
+  { key: 'sightseeing', label: 'Sightseeing' },
+  { key: 'agent', label: 'AI Agent' }
+];
+
+export default function Navbar({ activeTab, setActiveTab, bookingsCount, currentUser, onLogout }) {
   return (
-    <header className="navbar-container">
-      <div className="navbar-content">
-        <div className="navbar-brand" onClick={() => setActiveTab('rooms')} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setActiveTab('rooms')}>
-          <img 
-            src="/rajmahal-logo.jpg" 
-            alt="Rajmahal Group of Hotels Logo" 
-            className="brand-logo-img" 
-          />
-          <div className="brand-text">
-            <div className="brand-name">
-              <span className="verde-title">RAJMAHAL</span>
-            </div>
-            <span className="brand-tagline">RESIDENCY</span>
-          </div>
-        </div>
+    <header className="rk-nav">
+      <div className="rk-nav-inner">
+        <button type="button" className="rk-brand" onClick={() => setActiveTab('home')} aria-label="Rajmahal Residency, go to home">
+          <img src="/rajmahal-logo.jpg" alt="" className="rk-brand-logo" />
+          <span className="rk-brand-text">
+            <span className="rk-brand-name">Rajmahal Residency</span>
+            <span className="rk-brand-hindi" lang="hi">राजमहल रेज़िडेंसी</span>
+          </span>
+        </button>
 
-        <nav className="navbar-nav" aria-label="Main Navigation">
-          <button 
-            id="nav-rooms-btn"
-            className={`nav-tab-btn ${activeTab === 'rooms' ? 'active' : ''}`}
-            onClick={() => setActiveTab('rooms')}
-            aria-current={activeTab === 'rooms' ? 'page' : undefined}
-          >
-            <BedDouble size={18} />
-            <span>Rooms & Suites</span>
-            {availableRoomsCount > 0 && (
-              <span className="badge badge-success">{availableRoomsCount} available</span>
-            )}
-          </button>
-
-          <button 
+        <nav className="rk-nav-links" aria-label="Main navigation">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              id={`nav-${tab.key}-btn`}
+              type="button"
+              className={`rk-nav-link ${activeTab === tab.key ? 'is-current' : ''}`}
+              onClick={() => setActiveTab(tab.key)}
+              aria-current={activeTab === tab.key ? 'page' : undefined}
+            >
+              {tab.label}
+            </button>
+          ))}
+          <button
             id="nav-bookings-btn"
-            className={`nav-tab-btn ${activeTab === 'bookings' ? 'active' : ''}`}
+            type="button"
+            className={`rk-nav-link ${activeTab === 'bookings' ? 'is-current' : ''}`}
             onClick={() => setActiveTab('bookings')}
             aria-current={activeTab === 'bookings' ? 'page' : undefined}
           >
-            <BookmarkCheck size={18} />
-            <span>My Bookings</span>
-            {bookingsCount > 0 && (
-              <span className="badge badge-primary">{bookingsCount}</span>
-            )}
+            My bookings{bookingsCount > 0 && <span className="rk-count">{bookingsCount}</span>}
           </button>
-        </nav>
 
-        <div className="navbar-actions-group">
-          {/* User Profile or Sign In Button */}
           {currentUser ? (
-            <div className="nav-user-chip" aria-label={`Logged in as ${currentUser.name}`}>
-              <div className="user-avatar-circle">
-                <User size={15} />
-              </div>
-              <span className="user-display-name">{currentUser.name}</span>
-              <button 
-                type="button"
-                className="btn-nav-logout"
-                onClick={onLogout}
-                title="Sign out of account"
-                aria-label="Sign out"
-              >
-                <LogOut size={15} />
+            <span className="rk-user">
+              <span className="rk-user-name">{currentUser.name}</span>
+              <button type="button" className="rk-nav-link rk-signout" onClick={onLogout}>
+                <LogOut size={15} aria-hidden="true" /> Sign out
               </button>
-            </div>
+            </span>
           ) : (
-            <button 
+            <button
               id="nav-auth-btn"
               type="button"
-              className={`nav-auth-pill-btn ${activeTab === 'auth' ? 'active' : ''}`}
+              className={`rk-nav-link rk-signin ${activeTab === 'auth' ? 'is-current' : ''}`}
               onClick={() => setActiveTab('auth')}
-              aria-label="Sign In or Register an Account"
+              aria-current={activeTab === 'auth' ? 'page' : undefined}
             >
-              <KeyRound size={16} />
-              <span>Sign In / Register</span>
+              Sign in
             </button>
           )}
-
-          {/* BOOK NOW CTA */}
-          <button 
-            type="button"
-            className="btn-verde-book-now"
-            onClick={() => {
-              if (activeTab !== 'rooms') setActiveTab('rooms');
-              setTimeout(() => {
-                const el = document.getElementById('accommodations-section');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }, 100);
-            }}
-          >
-            BOOK NOW
-          </button>
-        </div>
+        </nav>
       </div>
     </header>
   );

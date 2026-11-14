@@ -76,5 +76,18 @@ export const api = {
       throw new Error(data.message || 'Login failed');
     }
     return data;
+  },
+
+  // Returns { reply, suggested_category, source }
+  async chat(message, history = []) {
+    const res = await fetch(`${API_BASE}/ai/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, history, context: {} })
+    });
+    if (!res.ok) {
+      throw new Error(`Chat request failed: ${res.status}`);
+    }
+    return await res.json();
   }
 };

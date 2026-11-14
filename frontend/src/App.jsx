@@ -2,17 +2,31 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Navbar from './components/Navbar';
 import HeroSection from './components/HeroSection';
 import CategoryBox from './components/CategoryBox';
+import { CATEGORY_ORDER } from './lib/rooms';
 import BookingModal from './components/BookingModal';
 import BookingsList from './components/BookingsList';
 import AuthPage from './components/AuthPage';
-import ReviewsSection from './components/ReviewsSection';
+import LocationSection from './components/LocationSection';
+import HomePage from './components/HomePage';
+import SightseeingPage from './components/SightseeingPage';
+import AgentPage from './components/AgentPage';
 import Toast from './components/Toast';
 import { api } from './services/api';
-import { RefreshCw, AlertCircle, Phone, Mail, MapPin } from 'lucide-react';
+import { toLocalISO } from './lib/dates';
+import { RefreshCw, AlertCircle } from 'lucide-react';
 import './App.css';
+import './home.css';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('rooms'); // 'rooms' | 'bookings' | 'auth'
+  // 'home' | 'rooms' | 'sightseeing' | 'agent' | 'bookings' | 'auth'
+  // Guests who are not signed in land on Home; returning signed-in guests go straight to Rooms.
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      return localStorage.getItem('rajmahal_user') ? 'rooms' : 'home';
+    } catch {
+      return 'home';
+    }
+  });
   const [rooms, setRooms] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +46,14 @@ export default function App() {
 
   // Pending room booking when guest was redirected to sign in / register
   const [pendingBooking, setPendingBooking] = useState(null);
+
+  // The stay the guest is planning on the home page, and the room they have picked on the key board
+  const [stay, setStay] = useState(() => ({ startDate: toLocalISO(new Date()), nights: 1, guests: 2 }));
+  const [pickedRoomId, setPickedRoomId] = useState(null);
+
+  const showToast = (type, title, message) => {
+    setToast({ type, title, message });
+  };
 
   const handleAuthSuccess = (userData) => {
     setCurrentUser(userData);
@@ -61,16 +83,6 @@ export default function App() {
     showToast('info', 'Sign In Required', `Please sign in or register to complete your reservation for ${room.type}.`);
   };
 
-  // Search & Filter state
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [onlyAvailable, setOnlyAvailable] = useState(false);
-  const [maxPrice, setMaxPrice] = useState(10000);
-
-  const showToast = (type, title, message) => {
-    setToast({ type, title, message });
-  };
-
   const loadData = async () => {
     setLoading(true);
     try {
@@ -84,7 +96,7 @@ export default function App() {
     } catch (err) {
       console.error('Error fetching data from API:', err);
       setIsOnline(false);
-      showToast('error', 'Server Connection Error', 'Make sure the Flask backend is running on port 5000.');
+      showToast('error', 'Server Connection Error', 'Make sure the backend is running on port 5000.');
     } finally {
       setLoading(false);
     }
@@ -94,49 +106,37 @@ export default function App() {
     loadData();
   }, []);
 
-  // 5 Categories Architecture with 5 rooms in each category
-  const categoryGroups = useMemo(() => {
-    const ALL_CATEGORIES = ['Single', 'Double', 'Suite', 'Deluxe', 'Family'];
+  // Each tab opens at the top of the page.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [activeTab]);
 
-    return ALL_CATEGORIES.map((catKey) => {
-      const catRooms = rooms.filter((r) => r.type.toLowerCase() === catKey.toLowerCase());
-      const availableRooms = catRooms.filter((r) => r.is_available);
-      return {
-        category: catKey,
-        rooms: catRooms,
-        availableCount: availableRooms.length,
-        totalCount: catRooms.length,
-        sampleRoom: catRooms[0] || null
-      };
-    }).filter((group) => {
-      // Category match
-      if (selectedCategory !== 'All' && group.category.toLowerCase() !== selectedCategory.toLowerCase()) {
-        return false;
-      }
-      // Search match
-      if (searchTerm.trim()) {
-        const query = searchTerm.toLowerCase();
-        const matchesName = group.category.toLowerCase().includes(query);
-        const matchesRooms = group.rooms.some(r => 
-          r.id.toString().includes(query) ||
-          (r.description || '').toLowerCase().includes(query) ||
-          (r.amenities || []).some(a => a.toLowerCase().includes(query))
-        );
-        if (!matchesName && !matchesRooms) return false;
-      }
-      // Availability filter
-      if (onlyAvailable && group.availableCount === 0) {
-        return false;
-      }
-      // Price filter
-      if (group.sampleRoom && group.sampleRoom.price > maxPrice) {
-        return false;
-      }
-      return true;
-    });
-  }, [rooms, selectedCategory, searchTerm, onlyAvailable, maxPrice]);
+  // The room highlighted on the key board: the guest's pick if it is still free and big enough,
+  // otherwise the cheapest free room that fits the party.
+  const pickedRoom = useMemo(() => {
+    const usable = (r) => r.is_available && (r.capacity || 1) >= stay.guests;
+    return (
+      rooms.find((r) => r.id === pickedRoomId && usable(r)) ||
+      rooms.filter(usable).sort((a, b) => a.price - b.price || a.id - b.id)[0] ||
+      null
+    );
+  }, [rooms, pickedRoomId, stay.guests]);
 
-  const availableCount = rooms.filter(r => r.is_available).length;
+  const categoryGroups = useMemo(
+    () =>
+      CATEGORY_ORDER.map((category) => ({
+        category,
+        rooms: rooms
+          .filter((r) => r.type.toLowerCase() === category.toLowerCase())
+          .sort((a, b) => a.id - b.id)
+      })).filter((group) => group.rooms.length > 0),
+    [rooms]
+  );
+
+  const handleReserve = (room) => {
+    setPickedRoomId(room.id);
+    setSelectedRoomForBooking(room);
+  };
 
   const handleBookingSuccess = async (bookingPayload) => {
     if (!currentUser) {
@@ -171,28 +171,23 @@ export default function App() {
   };
 
   return (
-    <div className="app-layout">
-      {/* Toast Notification */}
+    <div className="app-layout rk-app">
       <Toast toast={toast} onClose={() => setToast(null)} />
 
-      {/* Top Navbar */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        availableRoomsCount={availableCount}
         bookingsCount={bookings.length}
-        isOnline={isOnline}
         currentUser={currentUser}
         onLogout={handleLogout}
       />
 
       <main className="main-content">
-        {/* Offline Warning Banner */}
         {!isOnline && !loading && (
           <div className="offline-banner">
             <AlertCircle size={20} />
             <div>
-              <strong>Backend Server Offline:</strong> Could not connect to <code>http://127.0.0.1:5000</code>. Please start the Flask backend using <code>python backend/app.py</code>.
+              <strong>Backend server offline:</strong> could not connect to <code>http://127.0.0.1:5000</code>. Start it with <code>python backend/app.py</code>.
             </div>
             <button className="btn-retry" onClick={loadData}>
               <RefreshCw size={14} /> Retry
@@ -200,7 +195,6 @@ export default function App() {
           </div>
         )}
 
-        {/* View 1: Auth (Registration & Login Split Page) */}
         {activeTab === 'auth' && (
           <AuthPage
             initialMode="login"
@@ -211,78 +205,57 @@ export default function App() {
           />
         )}
 
-        {/* View 2: Rooms & Suites */}
+        {activeTab === 'home' && <HomePage onNavigate={setActiveTab} />}
+
+        {activeTab === 'sightseeing' && <SightseeingPage onNavigate={setActiveTab} />}
+
+        {activeTab === 'agent' && <AgentPage onNavigate={setActiveTab} />}
+
         {activeTab === 'rooms' && (
           <div>
             <HeroSection
-              selectedCategory={selectedCategory}
-              setSelectedCategory={setSelectedCategory}
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-              onlyAvailable={onlyAvailable}
-              setOnlyAvailable={setOnlyAvailable}
-              maxPrice={maxPrice}
-              setMaxPrice={setMaxPrice}
-              totalRooms={rooms.length}
-              filteredCount={categoryGroups.reduce((acc, g) => acc + g.rooms.length, 0)}
+              rooms={rooms}
+              loading={loading}
+              stay={stay}
+              setStay={setStay}
+              pickedRoom={pickedRoom}
+              onPick={setPickedRoomId}
+              onReserve={handleReserve}
             />
 
-            <section id="accommodations-section" className="rooms-container" aria-label="Rajmahal Residency Accommodations">
-              <div className="section-header-row">
-                <div className="section-headings-col">
-                  <span className="section-pre-title">5 ROOM CATEGORIES • 5 ROOMS EACH</span>
-                  <h2 className="section-serif-heading">Royal Accommodations Collection</h2>
-                  <p className="section-subtitle">
-                    Select your preferred category and choose your specific Room ID from 5 curated suites per collection.
-                  </p>
-                </div>
-                <button className="btn-refresh" onClick={loadData} title="Refresh room list" aria-label="Refresh available rooms">
-                  <RefreshCw size={16} className={loading ? 'spinning' : ''} />
-                  <span>Refresh</span>
+            <section id="accommodations-section" className="rk-section" aria-labelledby="rk-rooms-heading">
+              <div className="rk-section-head">
+                <h2 id="rk-rooms-heading" className="rk-h2">Five kinds of room</h2>
+                <button type="button" className="rk-text-btn" onClick={loadData} aria-label="Refresh room availability">
+                  <RefreshCw size={15} className={loading ? 'spinning' : ''} aria-hidden="true" /> Refresh
                 </button>
               </div>
 
               {loading ? (
-                <div className="loading-state">
-                  <div className="spinner"></div>
-                  <p>Loading available luxury suites...</p>
-                </div>
+                <p className="rk-empty" role="status">Loading rooms…</p>
               ) : categoryGroups.length === 0 ? (
-                <div className="no-results-card">
-                  <h3>No Categories Match Your Criteria</h3>
-                  <p>Try resetting filters or adjusting your max price slider to discover other options.</p>
-                  <button 
-                    className="btn-primary"
-                    onClick={() => {
-                      setSelectedCategory('All');
-                      setSearchTerm('');
-                      setOnlyAvailable(false);
-                      setMaxPrice(10000);
-                    }}
-                  >
-                    Reset All Filters
-                  </button>
-                </div>
+                <p className="rk-empty">No rooms to show yet. Check that the backend is running, then refresh.</p>
               ) : (
-                <div className="categories-boxes-grid">
+                <div className="rk-cats">
                   {categoryGroups.map((group) => (
                     <CategoryBox
                       key={group.category}
                       category={group.category}
                       rooms={group.rooms}
-                      onSelectBook={(selected) => setSelectedRoomForBooking(selected)}
+                      guests={stay.guests}
+                      pickedId={pickedRoom?.id}
+                      onPick={setPickedRoomId}
+                      onReserve={handleReserve}
                     />
                   ))}
                 </div>
               )}
             </section>
 
-            {/* Guest Reviews Section (Verde Boutique Hotel Reference) */}
-            <ReviewsSection />
+            <LocationSection />
           </div>
         )}
 
-        {/* View 3: My Bookings */}
         {activeTab === 'bookings' && (
           <BookingsList
             bookings={bookings}
@@ -294,11 +267,10 @@ export default function App() {
         )}
       </main>
 
-      {/* Booking Modal */}
       {selectedRoomForBooking && (
         <BookingModal
           room={selectedRoomForBooking}
-          initialDates={pendingBooking?.dates}
+          initialDates={pendingBooking?.dates || { startDate: stay.startDate, nights: stay.nights }}
           currentUser={currentUser}
           onClose={() => setSelectedRoomForBooking(null)}
           onRequireAuth={handleRequireAuthForBooking}
@@ -306,49 +278,29 @@ export default function App() {
         />
       )}
 
-      {/* Footer */}
-      <footer className="footer-container">
-        <div className="footer-content">
-          <div className="footer-col brand-col">
-            <div className="footer-brand-header">
-              <img src="/rajmahal-logo.jpg" alt="Rajmahal Logo" className="footer-logo-img" />
-              <h3 className="footer-brand">Rajmahal Residency</h3>
-            </div>
-            <p className="footer-desc">
-              Exemplary royal hospitality, heritage architecture, and authentic warmth. Dedicated to offering unforgettable memories in every stay.
-            </p>
-            <div className="contact-details">
-              <div className="contact-item"><MapPin size={15} /> Rohtak, Haryana, India</div>
-              <div className="contact-item"><Phone size={15} /> +91 98765 43210</div>
-              <div className="contact-item"><Mail size={15} /> reservations@rajmahalresidency.com</div>
+      <footer className="rk-footer">
+        <div className="rk-footer-inner">
+          <div className="rk-footer-brand">
+            <img src="/rajmahal-logo.jpg" alt="" className="rk-brand-logo" />
+            <div>
+              <p className="rk-footer-name">Rajmahal Residency</p>
+              <p className="rk-footer-hindi" lang="hi">राजमहल रेज़िडेंसी</p>
             </div>
           </div>
-
-          <div className="footer-col">
-            <h4>Quick Links</h4>
-            <ul>
-              <li><button onClick={() => setActiveTab('rooms')}>Explore Suites</button></li>
-              <li><button onClick={() => setActiveTab('bookings')}>Manage Bookings</button></li>
-              <li><button onClick={() => setActiveTab('auth')}>{currentUser ? `Member: ${currentUser.name}` : 'Member Sign In / Register'}</button></li>
-              <li><a href="#about">About Our Heritage</a></li>
-            </ul>
-          </div>
-
-          <div className="footer-col">
-            <h4>Guest Services</h4>
-            <ul>
-              <li><span>24/7 Concierge</span></li>
-              <li><span>Airport Chauffeur</span></li>
-              <li><span>Private Dining</span></li>
-              <li><span>Express Check-in</span></li>
-            </ul>
-          </div>
+          <ul className="rk-footer-links">
+            <li><button type="button" onClick={() => setActiveTab('home')}>Home</button></li>
+            <li><button type="button" onClick={() => setActiveTab('rooms')}>Rooms</button></li>
+            <li><button type="button" onClick={() => setActiveTab('sightseeing')}>Sightseeing</button></li>
+            <li><button type="button" onClick={() => setActiveTab('agent')}>AI Agent</button></li>
+            <li><button type="button" onClick={() => setActiveTab('bookings')}>My bookings</button></li>
+            <li>
+              <button type="button" onClick={() => setActiveTab('auth')}>
+                {currentUser ? currentUser.name : 'Sign in'}
+              </button>
+            </li>
+          </ul>
         </div>
-
-        <div className="footer-bottom">
-          <p>© {new Date().getFullYear()} Rajmahal Residency. Crafted with excellence.</p>
-          <p className="tech-badge">Powered by Flask REST API & Modern React (Vite)</p>
-        </div>
+        <p className="rk-footer-legal">© {new Date().getFullYear()} Rajmahal Residency, Sector 55, Gurgaon, Haryana.</p>
       </footer>
     </div>
   );
